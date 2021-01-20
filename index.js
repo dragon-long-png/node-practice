@@ -11,8 +11,9 @@ const path = require('path');
 //     console.log('文件已删除')
 // })
 
+const filename = path.resolve(__dirname, './one.txt');
 
-const rs = fs.createReadStream('./one.txt', {
+const rs = fs.createReadStream(filename, {
     encoding: 'utf-8',
     highWaterMark: 1
 });
