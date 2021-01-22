@@ -1,26 +1,64 @@
-const fs = require('fs');
+const net = require("net");
 
-const path = require('path');
+const socket = net.createConnection({
+    host: "duyi.ke.qq.com",
+    port: 80
+}, () => {
+    // console.log("连接成功")
+})
 
-const filename = path.resolve(__dirname, './temp/one.txt');
+let receive = null;
 
-const ws = fs.createWriteStream(filename, {
-    encoding: 'utf-8',
-    flags: 'w',
-    highWaterMark: 4
-});
+function parseResponse(data) {
+    const index = data.indexOf('\r\n\r\n');
+    const responseHead = data.substring(1, index); //响应头
+    const responseBody = data.substring(index + 2); //响应体
+    const head = responseHead.split('\r\n');
+    const headArray = head.slice(1).map(str => {
+        return str.split(':').map(s => s.trim());
+    })
+    const header = headArray.reduce((a, b) => {
+        a[b[0]] = b[1];
+        return a
+    }, {});
 
-let i = 0;
-function write () {
-    let flag = true;
-    while (i < 1024 * 1024 * 10 && flag) {
-        flag = ws.write('a');
-        i++;
+    return {
+        header,
+        body: responseBody.trimStart()
     }
 }
 
-write();
+function isOver() {
+    const contentLength = receive.header['Content-Length'];
+    const currentLength = Buffer.from(receive.body, 'utf-8').byteLength;
+    return currentLength >= contentLength;
+}
 
-ws.on('drain', () => {
-    write();
+socket.on("data", chunk => {
+    let responseData = chunk.toString("utf-8");
+    if (!receive) {
+        // 第一次，
+        receive = parseResponse(responseData);
+        if(isOver()) {
+            socket.end();
+        }
+        return;
+    }
+    // 如果没有完成，则继续添加
+    receive.body += responseData;
+    // 判断是否完成
+    if (isOver()) {
+        socket.end();
+        return;
+    }
+})
+
+socket.write(`GET / HTTP/1.1
+Host: duyi.ke.qq.com
+Connection: keep-alive
+
+`);
+
+socket.on("close", () => {
+    console.log("连接关闭了");
 })
